@@ -30,17 +30,21 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
     let mut f = std::fs::File::open(file.path())?;
     let mut b = String::new();
     f.read_to_string(&mut b)?;
-    for (idx, line) in b.lines().enumerate() {
+    let b: Vec<char> = b.chars().collect();
+    for (idx, line) in b.split(|c| *c == '\n').enumerate() {
         // ignore comments
-        if line.trim_start().starts_with("//") {
-            continue;
+        {
+            let line: String = line.iter().collect();
+            if line.trim_start().starts_with("//") {
+                continue;
+            }
         }
-        let mut b: Vec<char> = line.chars().collect();
+
         let mut c = 0;
         loop {
-            match pub_found(&b, c) {
+            match pub_found(&line, c) {
                 Some(true) => {
-                    if pub_is_needless(&mut b, c, file) {
+                    if pub_is_needless(&mut b.clone(), c + idx, file) {
                         map.push((idx + 1, c));
                     }
                 }
@@ -54,12 +58,12 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
     Ok(())
 }
 
-fn pub_is_needless(b: &mut Vec<char>, c: usize, file: &DirEntry) -> bool {
+fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool {
     // remove pub keyword
     //    dbg!(c);
     //  dbg!(&b[..10]);
     for _ in 0..3 {
-        b.remove(c);
+        b.remove(file_idx);
     }
 
     //dbg!(&b[..10]);
@@ -82,7 +86,7 @@ fn pub_is_needless(b: &mut Vec<char>, c: usize, file: &DirEntry) -> bool {
 
     // reinsert pub keyword
     for letter in PUB.iter() {
-        b.insert(c, *letter);
+        b.insert(file_idx, *letter);
     }
     let mut f = std::fs::File::create(file.path()).unwrap();
     write!(f, "{}", b.iter().collect::<String>()).unwrap();
