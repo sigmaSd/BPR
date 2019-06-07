@@ -137,7 +137,7 @@ fn concat<T: Copy>(l: &[&T]) -> Vec<T> {
 
 fn copy_entry(src: &Path, dst: &Path) -> std::io::Result<()> {
     if src.is_dir() {
-        if src == Path::new("./target") {
+        if src == PROJECT_PATH.join("target") {
             return Ok(());
         }
         let _ = fs::DirBuilder::new().create(&dst);
