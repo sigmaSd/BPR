@@ -1,6 +1,6 @@
 use std::fs::{self, DirEntry};
-use std::io::{self, Read, Write};
-pub use std::path::Path;
+pub use std::io::{self, Read, Write};
+use std::path::Path;
 
 const PUB: &[char] = &['p', 'u', 'b'];
 
@@ -63,15 +63,18 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
 pub fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool {
     // remove pub keyword
     //    dbg!(c);
-    //  dbg!(&b[..10]);
+    dbg!(file_idx);
+      dbg!(&b[..10]);
     for _ in 0..3 {
         b.remove(file_idx);
     }
 
-    //dbg!(&b[..10]);
+    dbg!(&b[..10]);
 
     let mut f = std::fs::File::create(file.path()).unwrap();
     write!(f, "{}", b.iter().collect::<String>()).unwrap();
+    loop {}
+
     let out = std::process::Command::new("cargo")
         .arg("b")
         .current_dir("./")
