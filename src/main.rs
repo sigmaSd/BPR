@@ -1,6 +1,6 @@
 use std::fs::{self, DirEntry};
-pub use std::io::{self, Read, Write};
-use std::path::Path;
+use std::io::{self, Read, Write};
+pub use std::path::Path;
 
 const PUB: &[char] = &['p', 'u', 'b'];
 
@@ -60,7 +60,7 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
     Ok(())
 }
 
-fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool {
+pub fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool {
     // remove pub keyword
     //    dbg!(c);
     //  dbg!(&b[..10]);
