@@ -6,6 +6,8 @@ use std::io::{self, Read, Write};
 use std::path::Path;
 
 type Map = Vec<(std::path::PathBuf, usize, usize, usize)>;
+type ArrMap = [(std::path::PathBuf, usize, usize, usize)];
+
 const PUB: &[char] = &['p', 'u', 'b'];
 lazy_static! {
     static ref LAB_PATH: std::path::PathBuf = std::env::temp_dir().join("bpr");
@@ -160,12 +162,12 @@ fn tmp_to_origin(f: std::path::PathBuf) -> std::path::PathBuf {
     PROJECT_PATH.join(f.strip_prefix(LAB_PATH.as_path()).unwrap())
 }
 
-fn apply_changes(v: Map) {
+fn apply_changes(v: &ArrMap) {
     let mut current_f = v.first().unwrap().0.clone();
     let mut idx = 0;
 
     for (f_path, _, _, cursor) in v.into_iter() {
-        if current_f != f_path {
+        if &current_f != f_path {
             idx = 0;
             current_f = f_path.clone();
         }
@@ -186,7 +188,33 @@ fn apply_changes(v: Map) {
     }
 }
 
+fn print_result(v: &ArrMap) {
+    for (file, x, y, _) in v {
+        println!(
+            "needles pub found in file: {} at row: {} col: {}",
+            file.display(),
+            x,
+            y
+        );
+    }
+}
+
+fn is_bin(p: &std::path::Path) -> std::io::Result<bool> {
+    let out = std::process::Command::new("cargo")
+        .arg("r")
+        .current_dir(p)
+        .output()?
+        .stderr;
+    Ok(String::from_utf8(out)
+        .unwrap()
+        .contains("Finished dev [unoptimized + debuginfo]"))
+}
+
 fn main() {
+    if !is_bin(&PROJECT_PATH).unwrap() {
+        eprintln!("{} is not a binary rust project", PROJECT_PATH.display());
+        std::process::exit(1);
+    };
     let _ = std::fs::remove_dir_all(LAB_PATH.as_path());
 
     copy_entry(&PROJECT_PATH, &LAB_PATH).unwrap();
@@ -194,6 +222,8 @@ fn main() {
     visit_dirs(&LAB_PATH.join("src"), &check_pub, &mut indexes).unwrap();
 
     if std::env::args().nth(1) == Some("-i".into()) && !indexes.is_empty() {
-        apply_changes(indexes);
+        apply_changes(&indexes);
     }
+
+    print_result(&indexes);
 }
