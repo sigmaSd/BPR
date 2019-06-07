@@ -33,7 +33,7 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
     let b: Vec<char> = b.chars().collect();
     let mut cummulative_line_len = vec!();
     for (idx, line) in b.split(|c| *c == '\n').enumerate() {
-        cummulative_line_len.push(line.len() + 1);
+        cummulative_line_len.push(line.len() + *cummulative_line_len.last().unwrap_or(&0));
         // ignore comments
         {
             let line: String = line.iter().collect();
@@ -64,16 +64,16 @@ pub fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> b
     // remove pub keyword
     //    dbg!(c);
     dbg!(file_idx);
-      dbg!(&b[..10]);
+      //dbg!(&b[..10]);
     for _ in 0..3 {
         b.remove(file_idx);
     }
 
-    dbg!(&b[..10]);
+    //dbg!(&b[..10]);
 
     let mut f = std::fs::File::create(file.path()).unwrap();
     write!(f, "{}", b.iter().collect::<String>()).unwrap();
-    loop {}
+    //loop {}
 
     let out = std::process::Command::new("cargo")
         .arg("b")
