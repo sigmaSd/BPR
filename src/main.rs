@@ -5,15 +5,25 @@ use std::fs::{self, DirEntry};
 use std::io::{self, Read, Write};
 use std::path::Path;
 
+type Map = Vec<(std::path::PathBuf, usize, usize, usize)>;
 const PUB: &[char] = &['p', 'u', 'b'];
 lazy_static! {
     static ref LAB_PATH: std::path::PathBuf = std::env::temp_dir().join("bpr");
+    static ref PROJECT_PATH: std::path::PathBuf = {
+        let custom_path = std::env::args().skip(1).filter(|a| a != "-i").last();
+        if let Some(p) = custom_path {
+            p.into()
+        } else {
+            "./".into()
+        }
+    };
 }
+
 // one possible implementation of walking a directory only visiting files
 fn visit_dirs(
     dir: &Path,
-    cb: &Fn(&DirEntry, &mut Vec<(std::path::PathBuf, usize, usize)>) -> io::Result<()>,
-    map: &mut Vec<(std::path::PathBuf, usize, usize)>,
+    cb: &Fn(&DirEntry, &mut Map) -> io::Result<()>,
+    map: &mut Map,
 ) -> io::Result<()> {
     if dir.is_dir() {
         for entry in fs::read_dir(dir)? {
@@ -29,14 +39,18 @@ fn visit_dirs(
     Ok(())
 }
 
-fn check_pub(file: &DirEntry, map: &mut Vec<(std::path::PathBuf, usize, usize)>) -> io::Result<()> {
+fn check_pub(file: &DirEntry, map: &mut Map) -> io::Result<()> {
+    if !is_rust_file(file.path()).unwrap_or(false) {
+        return Ok(());
+    }
+
     let mut f = std::fs::File::open(file.path())?;
     let mut b = String::new();
     f.read_to_string(&mut b)?;
     let b: Vec<char> = b.chars().collect();
-    let mut cummulative_line_len = vec![];
+    let mut cursor = vec![0];
     for (idx, line) in b.split(|c| *c == '\n').enumerate() {
-        cummulative_line_len.push(line.len() + *cummulative_line_len.last().unwrap_or(&0) + 1);
+        cursor.push(line.len() + *cursor.last().unwrap_or(&0) + 1);
         // ignore comments
         {
             let line: String = line.iter().collect();
@@ -47,15 +61,11 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(std::path::PathBuf, usize, usize)>)
 
         let mut c = 0;
         loop {
+            let cursor = c + cursor[cursor.len().checked_sub(2).unwrap_or(0)];
             match pub_found(&line, c) {
                 Some(true) => {
-                    if pub_is_needless(
-                        &mut b.clone(),
-                        c + cummulative_line_len
-                            [cummulative_line_len.len().checked_sub(2).unwrap_or(0)],
-                        file,
-                    ) {
-                        map.push((file.path(), idx + 1, c));
+                    if pub_is_needless(&mut b.clone(), cursor, file) {
+                        map.push((tmp_to_origin(file.path()), idx + 1, c, cursor));
                     }
                 }
                 Some(_) => {}
@@ -91,14 +101,6 @@ fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool 
     };
     let out = String::from_utf8(out).unwrap();
 
-    let is_needless = !out.contains("E0624") && !out.contains("E0603") && !out.contains("E0616");
-    if is_needless && std::env::args().nth(1) == Some("-i".into()) {
-        let origin_path =
-            std::path::Path::new("./").join(file.path().strip_prefix(LAB_PATH.as_path()).unwrap());
-        let mut f = std::fs::File::create(origin_path).unwrap();
-        write!(f, "{}", b.iter().collect::<String>()).unwrap();
-    }
-
     // reinsert pub keyword
     for letter in PUB.iter().rev() {
         b.insert(file_idx, *letter);
@@ -108,7 +110,10 @@ fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool 
     let mut f = std::fs::File::create(file.path()).unwrap();
     write!(f, "{}", b.iter().collect::<String>()).unwrap();
 
-    is_needless
+    !out.contains("E0624")
+        && !out.contains("E0603")
+        && !out.contains("E0616")
+        && !out.contains("E0433")
 }
 
 fn pub_found(v: &[char], c: usize) -> Option<bool> {
@@ -147,10 +152,48 @@ fn copy_entry(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+fn is_rust_file(f: std::path::PathBuf) -> Option<bool> {
+    Some(f.iter().last()?.to_str()?.ends_with("rs"))
+}
+
+fn tmp_to_origin(f: std::path::PathBuf) -> std::path::PathBuf {
+    PROJECT_PATH.join(f.strip_prefix(LAB_PATH.as_path()).unwrap())
+}
+
+fn apply_changes(v: Map) {
+    let mut current_f = v.first().unwrap().0.clone();
+    let mut idx = 0;
+
+    for (f_path, _, _, cursor) in v.into_iter() {
+        if current_f != f_path {
+            idx = 0;
+            current_f = f_path.clone();
+        }
+        let fixed_cursor = cursor - 4 * idx;
+        idx += 1;
+
+        let mut b = String::new();
+        let mut f = std::fs::File::open(&f_path).unwrap();
+
+        f.read_to_string(&mut b).unwrap();
+        let mut b: Vec<char> = b.chars().collect();
+
+        for _ in 0..4 {
+            b.remove(fixed_cursor);
+        }
+        let mut f = std::fs::File::create(&f_path).unwrap();
+        write!(f, "{}", b.iter().collect::<String>()).unwrap();
+    }
+}
+
 fn main() {
     let _ = std::fs::remove_dir_all(LAB_PATH.as_path());
-    copy_entry(Path::new("./"), &LAB_PATH).unwrap();
+
+    copy_entry(&PROJECT_PATH, &LAB_PATH).unwrap();
     let mut indexes = Vec::new();
-    visit_dirs(&LAB_PATH, &check_pub, &mut indexes).unwrap();
-    dbg!(indexes);
+    visit_dirs(&LAB_PATH.join("src"), &check_pub, &mut indexes).unwrap();
+
+    if std::env::args().nth(1) == Some("-i".into()) && !indexes.is_empty() {
+        apply_changes(indexes);
+    }
 }
