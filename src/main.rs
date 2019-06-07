@@ -45,9 +45,13 @@ fn check_pub(file: &DirEntry, map: &mut Vec<usize>) -> io::Result<()> {
 
 fn pub_is_needless(b: &mut Vec<u8>, c: usize, file: &DirEntry) -> bool {
     // remove pub keyword
+//    dbg!(c);
+  //  dbg!(&b[..10]);
     for i in 0..3 {
-        b.remove(c + i);
+        b.remove(c);
     }
+
+    //dbg!(&b[..10]);
 
     let mut f = std::fs::File::create(file.path()).unwrap();
     write!(f, "{}", String::from_utf8(b.to_vec()).unwrap());
@@ -62,10 +66,13 @@ fn pub_is_needless(b: &mut Vec<u8>, c: usize, file: &DirEntry) -> bool {
     dbg!(out);
 
     // reinsert pub keyword
-    for i in 0..3 {
-        b.insert(c + i, PUB[i]);
+    for i in (0..3).rev() {
+        b.insert(c, PUB[i]);
     }
-
+    let mut f = std::fs::File::create(file.path()).unwrap();
+    write!(f, "{}", String::from_utf8(b.to_vec()).unwrap());
+    //dbg!(&b[..10]);
+    //loop {}
     true
 }
 
