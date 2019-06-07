@@ -31,13 +31,17 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
     let mut b = String::new();
     f.read_to_string(&mut b)?;
     for (idx, line) in b.lines().enumerate() {
+        // ignore comments
+        if line.trim_start().starts_with("//") {
+            continue
+        }
         let mut b:Vec<char> = line.chars().collect();
         let mut c = 0;
         loop {
             match pub_found(&b, c) {
                 Some(true) => {
                     if pub_is_needless(&mut b, c, file) {
-                        map.push((idx, c));
+                        map.push((idx + 1, c));
                     }
                 }
                 Some(_) => {}
@@ -89,9 +93,9 @@ fn pub_is_needless(b: &mut Vec<char>, c: usize, file: &DirEntry) -> bool {
 
 fn pub_found(v: &[char], c: usize) -> Option<bool> {
     let found = concat(&[v.get(c)?, v.get(c + 1)?, v.get(c + 2)?]) == PUB;
-    let mut found = found && !(*v.get(c + 3)? as char).is_alphanumeric();
+    let mut found = found && (*v.get(c + 3)? as char).is_whitespace();
     if c > 0 {
-        found = found && !(*v.get(c - 1)? as char).is_alphanumeric();
+        found = found && (*v.get(c - 1)? as char).is_whitespace();
     }
     Some(found)
 }
