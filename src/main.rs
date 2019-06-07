@@ -1,32 +1,35 @@
+#[macro_use]
+extern crate lazy_static;
+
 use std::fs::{self, DirEntry};
 use std::io::{self, Read, Write};
 use std::path::Path;
 
 const PUB: &[char] = &['p', 'u', 'b'];
-
+lazy_static! {
+    static ref LAB_PATH: std::path::PathBuf = std::env::temp_dir().join("bpr");
+}
 // one possible implementation of walking a directory only visiting files
 fn visit_dirs(
     dir: &Path,
-    cb: &Fn(&DirEntry, &mut Vec<(usize, usize)>) -> io::Result<()>,
-    map: &mut Vec<(usize, usize)>,
+    cb: &Fn(&DirEntry, &mut Vec<(std::path::PathBuf, usize, usize)>) -> io::Result<()>,
+    map: &mut Vec<(std::path::PathBuf, usize, usize)>,
 ) -> io::Result<()> {
-    //dbg!(&dir);
     if dir.is_dir() {
         for entry in fs::read_dir(dir)? {
-            //      dbg!(4);
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
                 visit_dirs(&path, cb, map)?;
             } else {
-                cb(&entry, map).unwrap();
+                let _ = cb(&entry, map);
             }
         }
     }
     Ok(())
 }
 
-fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
+fn check_pub(file: &DirEntry, map: &mut Vec<(std::path::PathBuf, usize, usize)>) -> io::Result<()> {
     let mut f = std::fs::File::open(file.path())?;
     let mut b = String::new();
     f.read_to_string(&mut b)?;
@@ -52,7 +55,7 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
                             [cummulative_line_len.len().checked_sub(2).unwrap_or(0)],
                         file,
                     ) {
-                        map.push((idx + 1, c));
+                        map.push((file.path(), idx + 1, c));
                     }
                 }
                 Some(_) => {}
@@ -67,14 +70,9 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
 
 fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool {
     // remove pub keyword
-    //    dbg!(c);
-    dbg!(file_idx);
-    //dbg!(&b[..10]);
     for _ in 0..3 {
         b.remove(file_idx);
     }
-
-    //dbg!(&b[..10]);
 
     let mut f = std::fs::File::create(file.path()).unwrap();
     write!(f, "{}", b.iter().collect::<String>()).unwrap();
@@ -82,7 +80,7 @@ fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool 
 
     let out = std::process::Command::new("cargo")
         .arg("b")
-        .current_dir("./")
+        .current_dir(LAB_PATH.as_path())
         .output()
         .unwrap();
 
@@ -91,18 +89,27 @@ fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool 
     } else {
         out.stdout
     };
-    let out = String::from_utf8(out);
-    dbg!(&out);
+    let out = String::from_utf8(out).unwrap();
+    //dbg!(&out);
+
+    let is_needless = !out.contains("E0624") && !out.contains("E0603") && !out.contains("E0616");
+
+    if is_needless && std::env::args().nth(1) == Some("-i".into()) {
+        let origin_path = std::path::Path::new("./").join(file.path().strip_prefix(LAB_PATH.as_path()).unwrap());
+        let mut f = std::fs::File::create(origin_path).unwrap();
+        write!(f, "{}", b.iter().collect::<String>()).unwrap();
+    }
 
     // reinsert pub keyword
     for letter in PUB.iter().rev() {
         b.insert(file_idx, *letter);
     }
-    let mut f = std::fs::File::create(file.path()).unwrap();
-    write!(f, "{}", b.iter().collect::<String>()).unwrap();
-    //dbg!(&b[..10]);
-    //loop {}
-    true
+    //let mut f = std::fs::File::create(file.path()).unwrap();
+    //write!(f, "{}", b.iter().collect::<String>()).unwrap();
+
+
+
+    is_needless
 }
 
 fn pub_found(v: &[char], c: usize) -> Option<bool> {
@@ -122,8 +129,29 @@ fn concat<T: Copy>(l: &[&T]) -> Vec<T> {
     result
 }
 
+fn copy_entry(src: &Path, dst: &Path) -> std::io::Result<()> {
+    if src.is_dir() {
+        if src == Path::new("./target") {
+            return Ok(());
+        }
+        let _ = fs::DirBuilder::new().create(&dst);
+
+        for sub_entry in fs::read_dir(src)? {
+            let sub_entry = sub_entry?;
+            let path = sub_entry.path();
+            let dst = dst.join(&path.file_name().unwrap());
+            copy_entry(&path, &dst)?;
+        }
+    } else {
+        fs::copy(src, dst)?;
+    }
+    Ok(())
+}
+
 fn main() {
+    let _ = std::fs::remove_dir_all(LAB_PATH.as_path());
+    copy_entry(Path::new("./"), &LAB_PATH).unwrap();
     let mut indexes = Vec::new();
-    visit_dirs(std::path::Path::new("./src"), &check_pub, &mut indexes).unwrap();
+    visit_dirs(&LAB_PATH, &check_pub, &mut indexes).unwrap();
     dbg!(indexes);
 }
