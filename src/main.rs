@@ -95,7 +95,8 @@ fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool 
     let is_needless = !out.contains("E0624") && !out.contains("E0603") && !out.contains("E0616");
 
     if is_needless && std::env::args().nth(1) == Some("-i".into()) {
-        let origin_path = std::path::Path::new("./").join(file.path().strip_prefix(LAB_PATH.as_path()).unwrap());
+        let origin_path =
+            std::path::Path::new("./").join(file.path().strip_prefix(LAB_PATH.as_path()).unwrap());
         let mut f = std::fs::File::create(origin_path).unwrap();
         write!(f, "{}", b.iter().collect::<String>()).unwrap();
     }
@@ -106,8 +107,6 @@ fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool 
     }
     //let mut f = std::fs::File::create(file.path()).unwrap();
     //write!(f, "{}", b.iter().collect::<String>()).unwrap();
-
-
 
     is_needless
 }
