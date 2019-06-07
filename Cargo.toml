@@ -1,0 +1,11 @@
+[package]
+name = "bpr"
+version = "0.1.0"
+authors = ["Nbiba Bedis <bedisnbiba@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+lazy_static = "1.3.0"
+
+[profile.release]
+debug = true
