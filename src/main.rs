@@ -33,9 +33,9 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
     for (idx, line) in b.lines().enumerate() {
         // ignore comments
         if line.trim_start().starts_with("//") {
-            continue
+            continue;
         }
-        let mut b:Vec<char> = line.chars().collect();
+        let mut b: Vec<char> = line.chars().collect();
         let mut c = 0;
         loop {
             match pub_found(&b, c) {
@@ -81,8 +81,8 @@ fn pub_is_needless(b: &mut Vec<char>, c: usize, file: &DirEntry) -> bool {
     dbg!(&out);
 
     // reinsert pub keyword
-    for i in 0..3 {
-        b.insert(c, PUB[i]);
+    for letter in PUB.iter() {
+        b.insert(c, *letter);
     }
     let mut f = std::fs::File::create(file.path()).unwrap();
     write!(f, "{}", b.iter().collect::<String>()).unwrap();
