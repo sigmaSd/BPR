@@ -31,7 +31,9 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
     let mut b = String::new();
     f.read_to_string(&mut b)?;
     let b: Vec<char> = b.chars().collect();
+    let mut cummulative_line_len = vec!();
     for (idx, line) in b.split(|c| *c == '\n').enumerate() {
+        cummulative_line_len.push(line.len() + 1);
         // ignore comments
         {
             let line: String = line.iter().collect();
@@ -44,7 +46,7 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
         loop {
             match pub_found(&line, c) {
                 Some(true) => {
-                    if pub_is_needless(&mut b.clone(), c + idx, file) {
+                    if pub_is_needless(&mut b.clone(), c + cummulative_line_len[cummulative_line_len.len().checked_sub(2).unwrap_or(0)], file) {
                         map.push((idx + 1, c));
                     }
                 }
@@ -85,7 +87,7 @@ fn pub_is_needless(b: &mut Vec<char>, file_idx: usize, file: &DirEntry) -> bool 
     dbg!(&out);
 
     // reinsert pub keyword
-    for letter in PUB.iter() {
+    for letter in PUB.iter().rev() {
         b.insert(file_idx, *letter);
     }
     let mut f = std::fs::File::create(file.path()).unwrap();
