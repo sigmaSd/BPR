@@ -33,7 +33,7 @@ fn check_pub(file: &DirEntry, map: &mut Vec<(usize, usize)>) -> io::Result<()> {
     let b: Vec<char> = b.chars().collect();
     let mut cummulative_line_len = vec!();
     for (idx, line) in b.split(|c| *c == '\n').enumerate() {
-        cummulative_line_len.push(line.len() + *cummulative_line_len.last().unwrap_or(&0));
+        cummulative_line_len.push(line.len() + *cummulative_line_len.last().unwrap_or(&0) + 1);
         // ignore comments
         {
             let line: String = line.iter().collect();
